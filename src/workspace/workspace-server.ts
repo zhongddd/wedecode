@@ -7,9 +7,19 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import { spawn, ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'url';
+import { PUBLIC_OUTPUT_PATH } from '@/constant/index';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * 生成带时间戳的唯一文件夹名称
+ */
+function generateUniqueFolderName(baseName: string): string {
+  const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const safeName = baseName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').slice(0, 50);
+  return `${safeName}_${timestamp}`;
+}
 
 export interface Workspace {
   id: string;
@@ -799,13 +809,37 @@ export class WorkspaceServer {
     }
 
     try {
-      // 查找反编译结果文件夹，优先查找 OUTPUT，然后查找 decompiled
-      let outputPath = path.join(workspace.path, 'OUTPUT');
-      let folderType = 'OUTPUT';
+      // 查找反编译结果文件夹
+      // 优先从 D:\xiangmu 目录查找（新的输出位置）
+      let outputPath: string;
+      let folderType: string;
 
-      if (!fs.existsSync(outputPath)) {
-        outputPath = path.join(workspace.path, 'decompiled');
-        folderType = 'decompiled';
+      // 检查 D:\xiangmu 目录下的文件夹
+      if (fs.existsSync(PUBLIC_OUTPUT_PATH)) {
+        const folders = fs.readdirSync(PUBLIC_OUTPUT_PATH).filter(item => {
+          const itemPath = path.join(PUBLIC_OUTPUT_PATH, item);
+          return fs.statSync(itemPath).isDirectory();
+        });
+        // 查找最新的带时间戳的文件夹
+        if (folders.length > 0) {
+          // 按修改时间排序，取最新的
+          const sortedFolders = folders.sort((a, b) => {
+            const statA = fs.statSync(path.join(PUBLIC_OUTPUT_PATH, a));
+            const statB = fs.statSync(path.join(PUBLIC_OUTPUT_PATH, b));
+            return statB.mtimeMs - statA.mtimeMs;
+          });
+          outputPath = path.join(PUBLIC_OUTPUT_PATH, sortedFolders[0]);
+          folderType = 'D:\\xiangmu';
+          console.log(`[下载] 从 D:\\xiangmu 目录找到输出: ${sortedFolders[0]}`);
+        } else {
+          // 回退到旧的位置
+          outputPath = path.join(workspace.path, 'OUTPUT');
+          folderType = 'OUTPUT';
+        }
+      } else {
+        // 旧的位置
+        outputPath = path.join(workspace.path, 'OUTPUT');
+        folderType = 'OUTPUT';
       }
 
       console.log(`[下载] 检查输出路径: ${outputPath} (${folderType})`);
@@ -999,7 +1033,9 @@ export class WorkspaceServer {
 
       // 创建执行会话
       const executionId = this.generateId();
-      const outputPath = path.join(workspace.path, 'OUTPUT');
+      // 使用 D:\xiangmu 目录 + 带时间戳的唯一文件夹
+      const outputSubName = generateUniqueFolderName('batch_decompile');
+      const outputPath = path.join(PUBLIC_OUTPUT_PATH, outputSubName);
 
       // 确保输出目录存在
       if (!fs.existsSync(outputPath)) {
@@ -1161,8 +1197,11 @@ export class WorkspaceServer {
 
       console.log(`[批量反编译] 工作区 ${id} 找到 ${wxapkgFiles.length} 个文件:`, wxapkgFiles.map(f => path.basename(f)));
 
-      // 创建输出目录
-      const outputPath = path.join(workspace.path, 'OUTPUT');
+      // 使用 D:\xiangmu 目录 + 带时间戳的唯一文件夹
+      const outputSubName = generateUniqueFolderName('batch_decompile');
+      const outputPath = path.join(PUBLIC_OUTPUT_PATH, outputSubName);
+
+      // 确保输出目录存在
       if (!fs.existsSync(outputPath)) {
         fs.mkdirSync(outputPath, { recursive: true });
       }

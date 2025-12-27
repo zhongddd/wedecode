@@ -4,9 +4,10 @@ export const isMac = /^darwin/.test(process.platform);
 export const cssBodyToPageReg = /body\s*\{/g
 
 /**
- * 默认输出路径， 基于 inputPath 路径
+ * 默认输出路径
+ * 注意：每次反编译会在此目录下创建以包名或时间戳命名的独立文件夹
  * */
-export const PUBLIC_OUTPUT_PATH = 'OUTPUT'
+export const PUBLIC_OUTPUT_PATH = 'D:\\xiangmu'
 /**
  * 插件目录统一重命名映射
  * */

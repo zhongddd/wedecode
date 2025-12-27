@@ -8,6 +8,16 @@ import {sleep} from "@/utils/common";
 import prompts from "@/bin/wedecode/inquirer";
 import path from "node:path";
 import openFileExplorer from "open-file-explorer";
+import {PUBLIC_OUTPUT_PATH} from "@/constant/index";
+
+/**
+ * 生成带时间戳的唯一文件夹名称
+ * */
+function generateUniqueFolderName(baseName: string): string {
+  const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14); // YYYYMMDDHHmmss
+  const safeName = baseName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').slice(0, 50);
+  return `${safeName}_${timestamp}`;
+}
 
 /**
  * 通过命令行交互获取输入和输出路径
@@ -33,14 +43,20 @@ async function setInputAndOutputPath(config: Record<any, any>, opt: {
     }
   }
   if (!hasOutputPath) {
+    // 使用固定的输出根目录 D:\xiangmu，并在其下创建独立文件夹
+    const outputRootPath = PUBLIC_OUTPUT_PATH;
     let outputSubName: string = StreamPathDefaultEnum.defaultOutputPath
-    if (packInfo) { // 没手动指定路径并且发现路径中的 appId 存在，则自动指定输出到名为 appName 或 appId 的目录
-      outputSubName = packInfo.appName || packInfo.appId
+
+    if (packInfo) {
+      // 如果有包信息，使用包名生成独立文件夹
+      outputSubName = generateUniqueFolderName(packInfo.appName || packInfo.appId || 'unknown_app');
     } else {
-      const {outputPath} = await prompts.questionOutputPath()
-      outputSubName = outputPath || outputSubName
+      // 没有包信息时使用带时间戳的默认名称
+      outputSubName = generateUniqueFolderName('decompile');
     }
-    config.outputPath = path.resolve((packInfo?.storagePath || './'), StreamPathDefaultEnum.publicOutputPath, outputSubName)
+
+    // 输出路径: D:\xiangmu\appname_timestamp\
+    config.outputPath = path.resolve(outputRootPath, outputSubName);
   }
 }
 
